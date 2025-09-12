@@ -56,6 +56,75 @@ def get_coordinates(state: WeatherState) -> WeatherState:
     
     return state
 
+# Add this new node after the get_coordinates function
+def get_weather(state: WeatherState) -> WeatherState:
+    latitude = state["latitude"]
+    longitude = state["longitude"]
+    
+    # Skip if we don't have valid coordinates
+    if latitude == 0.0 and longitude == 0.0:
+        state["weather_data"] = {"error": "No valid coordinates"}
+        return state
+    
+    try:
+        # Call OpenMeteo API
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true&timezone=auto"
+        
+        response = requests.get(url)
+        response.raise_for_status()
+        
+        data = response.json()
+        state["weather_data"] = data["current_weather"]
+        
+        # Print weather info for testing
+        weather = data["current_weather"]
+        temp = weather["temperature"]
+        windspeed = weather["windspeed"]
+        print(f"Weather: {temp}°C, Wind: {windspeed} km/h")
+        
+    except Exception as e:
+        print(f"Error getting weather: {e}")
+        state["weather_data"] = {"error": str(e)}
+    
+    return state
+
+# Add this new node after the get_weather function
+def make_recommendation(state: WeatherState) -> WeatherState:
+    weather_data = state["weather_data"]
+    location = state["location"]
+    
+    # Handle error cases
+    if "error" in weather_data:
+        state["recommendation"] = "Sorry, I couldn't get weather data for that location."
+        state["final_response"] = state["recommendation"]
+        return state
+    
+    # Get weather details
+    temp = weather_data["temperature"]
+    windspeed = weather_data["windspeed"]
+    
+    # Simple decision logic
+    if temp >= 25:
+        activity = "Great weather for outdoor activities! Maybe visit the beach or go for a walk."
+    elif temp >= 15:
+        activity = "Nice weather for exploring the city or having a coffee outside."
+    elif temp >= 5:
+        activity = "A bit cool - perfect for museums or indoor activities. Bring a jacket if going out."
+    else:
+        activity = "Pretty cold! Stay warm indoors or bundle up if you must go out."
+    
+    # Add wind consideration
+    if windspeed > 20:
+        activity += " It's quite windy though, so be prepared!"
+    
+    # Create recommendation
+    recommendation = f"In {location.title()}, it's currently {temp}°C. {activity}"
+    state["recommendation"] = recommendation
+    state["final_response"] = recommendation
+    
+    print(f"Recommendation: {recommendation}")
+    return state
+
 # Create the graph
 def create_weather_graph():
     workflow = StateGraph(WeatherState)
@@ -63,13 +132,17 @@ def create_weather_graph():
     # Add nodes
     workflow.add_node("parse_location", parse_location)
     workflow.add_node("get_coordinates", get_coordinates)
+    workflow.add_node("get_weather", get_weather)
+    workflow.add_node("make_recommendation", make_recommendation)
     
     # Set entry point
     workflow.set_entry_point("parse_location")
     
     # Connect nodes
     workflow.add_edge("parse_location", "get_coordinates")
-    workflow.add_edge("get_coordinates", END)
+    workflow.add_edge("get_coordinates", "get_weather")
+    workflow.add_edge("get_weather", "make_recommendation")
+    workflow.add_edge("make_recommendation", END)
     
     return workflow.compile()
 
