@@ -125,6 +125,29 @@ def make_recommendation(state: WeatherState) -> WeatherState:
     print(f"Recommendation: {recommendation}")
     return state
 
+# Add Error Handling & Conditional Routing
+def check_coordinates(state: WeatherState) -> str:
+    """Conditional function to decide next step based on coordinates"""
+    if state["latitude"] == 0.0 and state["longitude"] == 0.0:
+        return "handle_error"
+    else:
+        return "get_weather"
+
+def handle_error(state: WeatherState) -> WeatherState:
+    """Handle cases where location wasn't found"""
+    location = state["location"]
+    
+    error_msg = f"Sorry, I couldn't find '{location}'. Please try:"
+    error_msg += "\n• A major city name (e.g., 'London')"
+    error_msg += "\n• City with country (e.g., 'Paris France')"
+    error_msg += "\n• Check spelling and try again"
+    
+    state["recommendation"] = error_msg
+    state["final_response"] = error_msg
+    
+    print(f"Error handled: Location '{location}' not found")
+    return state
+
 # Create the graph
 def create_weather_graph():
     workflow = StateGraph(WeatherState)
