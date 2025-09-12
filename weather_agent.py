@@ -1,6 +1,20 @@
 from langgraph.graph import StateGraph, END
 from typing import TypedDict
 import requests
+import os
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI  
+from langchain_core.messages import HumanMessage  
+
+# Load environment variables
+load_dotenv()
+
+# Initialize LLM
+llm = ChatOpenAI(
+    model="gpt-3.5-turbo",
+    temperature=0.7,
+    api_key=os.getenv("OPENAI_API_KEY")
+)
 
 # Define the state that flows through our graph
 class WeatherState(TypedDict):
@@ -88,7 +102,7 @@ def get_weather(state: WeatherState) -> WeatherState:
     
     return state
 
-# Add this new node after the get_weather function
+# Replace the existing make_recommendation function with this
 def make_recommendation(state: WeatherState) -> WeatherState:
     weather_data = state["weather_data"]
     location = state["location"]
@@ -103,26 +117,47 @@ def make_recommendation(state: WeatherState) -> WeatherState:
     temp = weather_data["temperature"]
     windspeed = weather_data["windspeed"]
     
-    # Simple decision logic
-    if temp >= 25:
-        activity = "Great weather for outdoor activities! Maybe visit the beach or go for a walk."
-    elif temp >= 15:
-        activity = "Nice weather for exploring the city or having a coffee outside."
-    elif temp >= 5:
-        activity = "A bit cool - perfect for museums or indoor activities. Bring a jacket if going out."
-    else:
-        activity = "Pretty cold! Stay warm indoors or bundle up if you must go out."
+    try:
+        # Create prompt for LLM
+        prompt = f"""You are a helpful weather assistant. Based on the current weather data, provide a friendly and practical recommendation.
+
+Location: {location.title()}
+Temperature: {temp}°C
+Wind Speed: {windspeed} km/h
+
+Please provide:
+1. A brief comment on the current conditions
+2. Activity suggestions appropriate for this weather
+3. Any practical advice (clothing, etc.)
+
+Keep the response conversational and under 100 words."""
+
+        # Call LLM
+        messages = [HumanMessage(content=prompt)]
+        response = llm.invoke(messages)
+        
+        recommendation = response.content.strip()
+        
+        state["recommendation"] = recommendation
+        state["final_response"] = recommendation
+        
+        print(f"LLM Recommendation: {recommendation}")
+        
+    except Exception as e:
+        # Fallback to simple logic if LLM fails
+        print(f"LLM error, using fallback: {e}")
+        
+        if temp >= 25:
+            activity = "Great weather for outdoor activities!"
+        elif temp >= 15:
+            activity = "Nice weather for exploring."
+        else:
+            activity = "Cooler weather - dress warmly."
+            
+        recommendation = f"In {location.title()}, it's {temp}°C. {activity}"
+        state["recommendation"] = recommendation
+        state["final_response"] = recommendation
     
-    # Add wind consideration
-    if windspeed > 20:
-        activity += " It's quite windy though, so be prepared!"
-    
-    # Create recommendation
-    recommendation = f"In {location.title()}, it's currently {temp}°C. {activity}"
-    state["recommendation"] = recommendation
-    state["final_response"] = recommendation
-    
-    print(f"Recommendation: {recommendation}")
     return state
 
 # Add Error Handling & Conditional Routing
@@ -152,22 +187,35 @@ def handle_error(state: WeatherState) -> WeatherState:
 def create_weather_graph():
     workflow = StateGraph(WeatherState)
     
-    # Add nodes
+    # Add all nodes
     workflow.add_node("parse_location", parse_location)
     workflow.add_node("get_coordinates", get_coordinates)
     workflow.add_node("get_weather", get_weather)
     workflow.add_node("make_recommendation", make_recommendation)
+    workflow.add_node("handle_error", handle_error)  # Add error handler
     
     # Set entry point
     workflow.set_entry_point("parse_location")
     
-    # Connect nodes
+    # Connect nodes with conditional routing
     workflow.add_edge("parse_location", "get_coordinates")
-    workflow.add_edge("get_coordinates", "get_weather")
+    
+    # Conditional edge based on coordinates
+    workflow.add_conditional_edges(
+        "get_coordinates",
+        check_coordinates,  # Function that decides the path
+        {
+            "get_weather": "get_weather",      # If coordinates found
+            "handle_error": "handle_error"     # If coordinates not found
+        }
+    )
+    
     workflow.add_edge("get_weather", "make_recommendation")
     workflow.add_edge("make_recommendation", END)
+    workflow.add_edge("handle_error", END)  # Error path also ends
     
     return workflow.compile()
+
 
 # Test function
 # Replace the existing test_basic function with this
@@ -199,7 +247,8 @@ def run_interactive():
                 "longitude": 0.0,
                 "weather_data": {},
                 "recommendation": "",
-                "final_response": ""
+                "final_response": "",
+                "parsed_recommendation": {}  
             }
             
             print(f"\n🔍 Looking up weather for: {user_input}")
@@ -209,6 +258,13 @@ def run_interactive():
             
         except Exception as e:
             print(f"❌ Error: {e}")
+
+# Test OpenAI (add this anywhere in your code)
+try:
+    response = llm.invoke([HumanMessage(content="Say 'OpenAI is working!'")])
+    print(f"🤖 OpenAI: {response.content}")
+except Exception as e:
+    print(f"❌ OpenAI Error: {e}")
 
 # Update the main section
 if __name__ == "__main__":
