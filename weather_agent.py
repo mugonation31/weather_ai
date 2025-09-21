@@ -5,6 +5,9 @@ import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI  
 from langchain_core.messages import HumanMessage  
+from langchain_core.output_parsers import JsonOutputParser  
+from langchain_core.pydantic_v1 import BaseModel, Field     
+import json  
 
 # Load environment variables
 load_dotenv()
@@ -16,6 +19,16 @@ llm = ChatOpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
+# Define the structured output format
+class WeatherRecommendation(BaseModel):
+    condition_summary: str = Field(description="Brief summary of current weather conditions")
+    activity_suggestion: str = Field(description="One specific activity recommendation")
+    clothing_advice: str = Field(description="What to wear for this weather")
+    temperature: float = Field(description="Current temperature in Celsius")
+
+# Create parser
+parser = JsonOutputParser(pydantic_object=WeatherRecommendation)
+
 # Define the state that flows through our graph
 class WeatherState(TypedDict):
     user_input: str
@@ -25,6 +38,7 @@ class WeatherState(TypedDict):
     weather_data: dict
     recommendation: str
     final_response: str
+    parsed_recommendation: dict
 
 # Node 1: Parse user input and extract location
 def parse_location(state: WeatherState) -> WeatherState:
@@ -111,6 +125,7 @@ def make_recommendation(state: WeatherState) -> WeatherState:
     if "error" in weather_data:
         state["recommendation"] = "Sorry, I couldn't get weather data for that location."
         state["final_response"] = state["recommendation"]
+        state["parsed_recommendation"] = {}
         return state
     
     # Get weather details
@@ -118,45 +133,47 @@ def make_recommendation(state: WeatherState) -> WeatherState:
     windspeed = weather_data["windspeed"]
     
     try:
-        # Create prompt for LLM
-        prompt = f"""You are a helpful weather assistant. Based on the current weather data, provide a friendly and practical recommendation.
+        # Create structured prompt for LLM
+        prompt = f"""You are a weather assistant. Analyze the weather and provide a structured recommendation.
 
 Location: {location.title()}
 Temperature: {temp}°C
 Wind Speed: {windspeed} km/h
 
-Please provide:
-1. A brief comment on the current conditions
-2. Activity suggestions appropriate for this weather
-3. Any practical advice (clothing, etc.)
+{parser.get_format_instructions()}
 
-Keep the response conversational and under 100 words."""
+Provide exactly one specific activity suggestion that's perfect for these conditions."""
 
         # Call LLM
         messages = [HumanMessage(content=prompt)]
         response = llm.invoke(messages)
         
-        recommendation = response.content.strip()
+        # Parse the structured output
+        parsed_output = parser.parse(response.content)
+        state["parsed_recommendation"] = parsed_output
         
-        state["recommendation"] = recommendation
-        state["final_response"] = recommendation
+        # Create a clean final response
+        final_response = f"""📍 {location.title()} Weather Update:
+🌡️ {parsed_output['condition_summary']} ({parsed_output['temperature']}°C)
+🎯 Suggested Activity: {parsed_output['activity_suggestion']}
+👕 What to Wear: {parsed_output['clothing_advice']}"""
         
-        print(f"LLM Recommendation: {recommendation}")
+        state["recommendation"] = response.content
+        state["final_response"] = final_response
+        
+        print("Parsed JSON:", json.dumps(parsed_output, indent=2))
         
     except Exception as e:
-        # Fallback to simple logic if LLM fails
-        print(f"LLM error, using fallback: {e}")
-        
-        if temp >= 25:
-            activity = "Great weather for outdoor activities!"
-        elif temp >= 15:
-            activity = "Nice weather for exploring."
-        else:
-            activity = "Cooler weather - dress warmly."
-            
-        recommendation = f"In {location.title()}, it's {temp}°C. {activity}"
-        state["recommendation"] = recommendation
-        state["final_response"] = recommendation
+        print(f"Parsing error: {e}")
+        # Fallback
+        fallback = {
+            "condition_summary": f"Current weather in {location.title()}",
+            "activity_suggestion": "Enjoy the outdoors" if temp > 15 else "Stay cozy indoors",
+            "clothing_advice": "Dress appropriately for the temperature",
+            "temperature": temp
+        }
+        state["parsed_recommendation"] = fallback
+        state["final_response"] = f"Temperature: {temp}°C. {fallback['activity_suggestion']}"
     
     return state
 
