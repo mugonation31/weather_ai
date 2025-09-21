@@ -13,3 +13,10 @@ class WeatherState(TypedDict):
     recommendation: str
     final_response: str
     parsed_recommendation: dict
+
+# Define the structured output format
+class WeatherRecommendation(BaseModel):
+    condition_summary: str = Field(description="Brief summary of current weather conditions")
+    activity_suggestion: str = Field(description="One specific activity recommendation")
+    clothing_advice: str = Field(description="What to wear for this weather")
+    temperature: float = Field(description="Current temperature in Celsius")
