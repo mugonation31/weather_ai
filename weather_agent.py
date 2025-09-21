@@ -1,44 +1,19 @@
 from langgraph.graph import StateGraph, END
-from typing import TypedDict
+
 import requests
-import os
+
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI  
+
 from langchain_core.messages import HumanMessage  
-from langchain_core.output_parsers import JsonOutputParser  
-from langchain_core.pydantic_v1 import BaseModel, Field     
+
+   
 import json  
 
 # Load environment variables
 load_dotenv()
 
-# Initialize LLM
-llm = ChatOpenAI(
-    model="gpt-3.5-turbo",
-    temperature=0.7,
-    api_key=os.getenv("OPENAI_API_KEY")
-)
 
-# Define the structured output format
-class WeatherRecommendation(BaseModel):
-    condition_summary: str = Field(description="Brief summary of current weather conditions")
-    activity_suggestion: str = Field(description="One specific activity recommendation")
-    clothing_advice: str = Field(description="What to wear for this weather")
-    temperature: float = Field(description="Current temperature in Celsius")
 
-# Create parser
-parser = JsonOutputParser(pydantic_object=WeatherRecommendation)
-
-# Define the state that flows through our graph
-class WeatherState(TypedDict):
-    user_input: str
-    location: str
-    latitude: float
-    longitude: float
-    weather_data: dict
-    recommendation: str
-    final_response: str
-    parsed_recommendation: dict
 
 # Node 1: Parse user input and extract location
 def parse_location(state: WeatherState) -> WeatherState:
