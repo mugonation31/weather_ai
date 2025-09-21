@@ -1,7 +1,8 @@
 from langgraph.graph import StateGraph, END
 from nodes.location import parse_location
-from nodes.geocoding import get_coordinates, get_coordinates
+from nodes.geocoding import get_coordinates, check_coordinates
 from nodes.weather import get_weather
+from nodes.error_handling import handle_error
 from models import WeatherState
 from config import llm, parser
 
@@ -83,20 +84,7 @@ Provide exactly one specific activity suggestion that's perfect for these condit
     return state
 
 
-def handle_error(state: WeatherState) -> WeatherState:
-    """Handle cases where location wasn't found"""
-    location = state["location"]
-    
-    error_msg = f"Sorry, I couldn't find '{location}'. Please try:"
-    error_msg += "\n• A major city name (e.g., 'London')"
-    error_msg += "\n• City with country (e.g., 'Paris France')"
-    error_msg += "\n• Check spelling and try again"
-    
-    state["recommendation"] = error_msg
-    state["final_response"] = error_msg
-    
-    print(f"Error handled: Location '{location}' not found")
-    return state
+
 
 # Create the graph
 def create_weather_graph():
