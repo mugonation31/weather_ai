@@ -1,6 +1,6 @@
 from typing import TypedDict
 from langchain_core.output_parsers import JsonOutputParser  
-from langchain_core.pydantic_v1 import BaseModel, Field  
+from pydantic import BaseModel, Field
 
 
 # Define the state that flows through our graph

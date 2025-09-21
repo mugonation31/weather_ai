@@ -31,3 +31,11 @@ def get_coordinates(state: WeatherState) -> WeatherState:
         state["longitude"] = 0.0
     
     return state
+
+# Add Error Handling & Conditional Routing
+def check_coordinates(state: WeatherState) -> str:
+    """Conditional function to decide next step based on coordinates"""
+    if state["latitude"] == 0.0 and state["longitude"] == 0.0:
+        return "handle_error"
+    else:
+        return "get_weather"
