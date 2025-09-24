@@ -1,7 +1,19 @@
 import json 
+import os
+from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage   
-from models import WeatherState
-from config import llm, parser
+from langchain_openai import ChatOpenAI
+from langchain_core.output_parsers import JsonOutputParser
+from models import WeatherState, WeatherRecommendation
+
+# Load environment and create fresh LLM instance
+load_dotenv()
+llm = ChatOpenAI(
+    model="gpt-3.5-turbo",
+    temperature=0.7,
+    api_key=os.getenv("OPENAI_API_KEY")
+)
+parser = JsonOutputParser(pydantic_object=WeatherRecommendation)
 
 # Replace the existing make_recommendation function with this
 def make_recommendation(state: WeatherState) -> WeatherState:
@@ -20,6 +32,7 @@ def make_recommendation(state: WeatherState) -> WeatherState:
     windspeed = weather_data["windspeed"]
     
     try:
+        print("🔧 Creating prompt...")
         # Create structured prompt for LLM
         prompt = f"""You are a weather assistant. Analyze the weather and provide a structured recommendation.
 
@@ -31,9 +44,11 @@ Wind Speed: {windspeed} km/h
 
 Provide exactly one specific activity suggestion that's perfect for these conditions."""
 
+        
         # Call LLM
         messages = [HumanMessage(content=prompt)]
         response = llm.invoke(messages)
+        
         
         # Parse the structured output
         parsed_output = parser.parse(response.content)
@@ -51,7 +66,7 @@ Provide exactly one specific activity suggestion that's perfect for these condit
         print("Parsed JSON:", json.dumps(parsed_output, indent=2))
         
     except Exception as e:
-        print(f"Parsing error: {e}")
+        print(f"LLM error: {e}")
         # Fallback
         fallback = {
             "condition_summary": f"Current weather in {location.title()}",

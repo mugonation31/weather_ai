@@ -1,7 +1,12 @@
 import os
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI  
 from langchain_core.output_parsers import JsonOutputParser  
 from models import WeatherRecommendation
+
+# Load environment variables
+load_dotenv()
+
 
 # Initialize LLM
 llm = ChatOpenAI(

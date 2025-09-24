@@ -1,33 +1,4 @@
-from langgraph.graph import StateGraph, END
-from nodes.location import parse_location
-from nodes.geocoding import get_coordinates, check_coordinates
-from nodes.weather import get_weather
-from nodes.error_handling import handle_error
-from nodes.recommendations import make_recommendation
 from graph import create_weather_graph
-from models import WeatherState
-
-
-from dotenv import load_dotenv
- 
-
-# Load environment variables
-load_dotenv()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -73,12 +44,6 @@ def run_interactive():
         except Exception as e:
             print(f"❌ Error: {e}")
 
-# Test OpenAI (add this anywhere in your code)
-try:
-    response = llm.invoke([HumanMessage(content="Say 'OpenAI is working!'")])
-    print(f"🤖 OpenAI: {response.content}")
-except Exception as e:
-    print(f"❌ OpenAI Error: {e}")
 
 # Update the main section
 if __name__ == "__main__":
